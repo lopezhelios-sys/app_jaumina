@@ -4,6 +4,7 @@ import { generarVariablesCSS } from '@/lib/marca';
 import { resolverLocal } from '@/lib/rutas';
 import { EstadoLocal } from '@/componentes/menu/EstadoLocal';
 import { ProductoCard } from '@/componentes/menu/ProductoCard';
+import { CarritoFlotante } from '@/componentes/menu/CarritoFlotante';
 import { obtenerGruposDeProductos } from '@/lib/consultas-menu';
 import type { ProductoCompleto } from '@/lib/tipos-menu';
 
@@ -145,6 +146,9 @@ export default async function PaginaMenuPublico({
           </section>
         ))}
       </main>
+
+      {/* Carrito flotante */}
+      <CarritoFlotante localSlug={slug} />
     </div>
   );
 }

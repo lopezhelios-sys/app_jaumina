@@ -50,6 +50,13 @@ Plataforma para locales gastronómicos de Paraguay: menú digital, pedidos en l�
 - Mensaje en español, imperativo
 - Ejemplo: `"agrega ruta del menú público"`
 
+### 8. URLs públicas centralizadas
+- **Toda URL pública** pasa por `lib/rutas.ts`
+- `resolverLocal(params)` — obtiene el slug del local (único lugar que lee params)
+- `urlDeLocal(slug, ruta?)` — arma URLs completas (QR, WhatsApp, emails)
+- `rutaDeLocal(slug, ruta?)` — rutas relativas para `<Link>`
+- **Nunca** escribir `/m/${slug}` a mano en otro archivo
+
 ## Estructura de Carpetas
 
 ```

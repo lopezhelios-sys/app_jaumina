@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { crearClienteServidor } from '@/lib/supabase/servidor';
 import { generarVariablesCSS } from '@/lib/marca';
 import { formatearGuaranies } from '@/lib/formato';
+import { resolverLocal } from '@/lib/rutas';
 
 export const revalidate = 60; // ISR: revalidar cada 60 segundos
 
@@ -115,7 +116,7 @@ export default async function PaginaMenuPublico({
 }: {
   params: Promise<{ local: string }>;
 }) {
-  const { local: slug } = await params;
+  const slug = await resolverLocal(params);
 
   const local = await obtenerLocal(slug);
   if (!local) {

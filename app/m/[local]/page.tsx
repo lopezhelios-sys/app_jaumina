@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import { crearClienteServidor } from '@/lib/supabase/servidor';
 import { generarVariablesCSS } from '@/lib/marca';
-import { formatearGuaranies } from '@/lib/formato';
 import { resolverLocal } from '@/lib/rutas';
 import { EstadoLocal } from '@/componentes/menu/EstadoLocal';
+import { ProductoCard } from '@/componentes/menu/ProductoCard';
+import { obtenerGruposDeProductos } from '@/lib/consultas-menu';
+import type { ProductoCompleto } from '@/lib/tipos-menu';
 
 export const revalidate = 60; // ISR: revalidar cada 60 segundos
 
@@ -20,24 +22,6 @@ interface Local {
     crema?: string;
     fondo?: string;
   };
-}
-
-interface Producto {
-  id: string;
-  slug: string;
-  nombre: string;
-  descriptor: string | null;
-  ingredientes: string[];
-  porcion: string | null;
-  precio: number;
-  imagen_url: string | null;
-  ilustracion: string | null;
-  picante_base: number;
-  destacado: boolean;
-  orden: number;
-  categoria: string;
-  categoria_nombre: string;
-  categoria_orden: number;
 }
 
 async function obtenerLocal(slug: string) {
@@ -57,7 +41,10 @@ async function obtenerLocal(slug: string) {
   return local as Local;
 }
 
-async function obtenerProductos(slug: string) {
+async function obtenerProductos(
+  slug: string,
+  localId: string
+): Promise<ProductoCompleto[]> {
   const supabase = await crearClienteServidor();
 
   const { data: productos } = await supabase
@@ -67,13 +54,25 @@ async function obtenerProductos(slug: string) {
     .order('categoria_orden')
     .order('orden');
 
-  return (productos || []) as Producto[];
+  if (!productos || productos.length === 0) {
+    return [];
+  }
+
+  // Obtener grupos de opciones para todos los productos
+  const productosIds = productos.map((p) => p.id);
+  const gruposPorProducto = await obtenerGruposDeProductos(localId, productosIds);
+
+  // Combinar productos con sus grupos
+  return productos.map((p) => ({
+    ...p,
+    grupos: gruposPorProducto.get(p.id) || [],
+  })) as ProductoCompleto[];
 }
 
-function agruparPorCategoria(productos: Producto[]) {
+function agruparPorCategoria(productos: ProductoCompleto[]) {
   const categorias = new Map<
     string,
-    { nombre: string; orden: number; productos: Producto[] }
+    { nombre: string; orden: number; productos: ProductoCompleto[] }
   >();
 
   for (const producto of productos) {
@@ -102,7 +101,7 @@ export default async function PaginaMenuPublico({
     notFound();
   }
 
-  const productos = await obtenerProductos(slug);
+  const productos = await obtenerProductos(slug, local.id);
   const categorias = agruparPorCategoria(productos);
   const variablesCSS = generarVariablesCSS({
     colorPrimario: local.marca.primario,
@@ -140,38 +139,7 @@ export default async function PaginaMenuPublico({
 
             <div className="space-y-6">
               {categoria.productos.map((producto) => (
-                <article
-                  key={producto.id}
-                  className="rounded-lg border p-4 transition-shadow hover:shadow-md"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold">{producto.nombre}</h3>
-
-                      {producto.descriptor && (
-                        <p className="mt-1 text-sm text-gray-500">{producto.descriptor}</p>
-                      )}
-
-                      {producto.ingredientes.length > 0 && (
-                        <p className="mt-2 text-sm text-gray-600">
-                          {producto.ingredientes.join(' · ')}
-                        </p>
-                      )}
-
-                      {producto.porcion && (
-                        <p className="mt-2 text-xs text-gray-500">{producto.porcion}</p>
-                      )}
-
-                      <p className="mt-3 text-lg font-bold">
-                        {formatearGuaranies(producto.precio)} Gs.
-                      </p>
-                    </div>
-
-                    {producto.ilustracion && (
-                      <div className="text-4xl">{producto.ilustracion}</div>
-                    )}
-                  </div>
-                </article>
+                <ProductoCard key={producto.id} producto={producto} localSlug={slug} />
               ))}
             </div>
           </section>

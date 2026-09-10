@@ -3,6 +3,7 @@ import { crearClienteServidor } from '@/lib/supabase/servidor';
 import { generarVariablesCSS } from '@/lib/marca';
 import { formatearGuaranies } from '@/lib/formato';
 import { resolverLocal } from '@/lib/rutas';
+import { EstadoLocal } from '@/componentes/menu/EstadoLocal';
 
 export const revalidate = 60; // ISR: revalidar cada 60 segundos
 
@@ -39,14 +40,6 @@ interface Producto {
   categoria_orden: number;
 }
 
-interface EstadoLocal {
-  abierto: boolean;
-  en_horario: boolean;
-  abierto_manual: boolean;
-  latido_min: number;
-  conexion: 'ok' | 'inestable' | 'caido';
-}
-
 async function obtenerLocal(slug: string) {
   const supabase = await crearClienteServidor();
 
@@ -75,20 +68,6 @@ async function obtenerProductos(slug: string) {
     .order('orden');
 
   return (productos || []) as Producto[];
-}
-
-async function obtenerEstado(localId: string): Promise<EstadoLocal | null> {
-  const supabase = await crearClienteServidor();
-
-  const { data, error } = await supabase.rpc('local_disponible', {
-    p_local: localId,
-  });
-
-  if (error) {
-    return null;
-  }
-
-  return data as EstadoLocal;
 }
 
 function agruparPorCategoria(productos: Producto[]) {
@@ -123,11 +102,7 @@ export default async function PaginaMenuPublico({
     notFound();
   }
 
-  const [productos, estado] = await Promise.all([
-    obtenerProductos(slug),
-    obtenerEstado(local.id),
-  ]);
-
+  const productos = await obtenerProductos(slug);
   const categorias = agruparPorCategoria(productos);
   const variablesCSS = generarVariablesCSS({
     colorPrimario: local.marca.primario,
@@ -154,30 +129,8 @@ export default async function PaginaMenuPublico({
         {local.claim && <p className="mt-2 text-lg text-white/90">{local.claim}</p>}
       </header>
 
-      {/* Estado del local */}
-      {estado && (
-        <div className="border-b px-6 py-4">
-          {estado.abierto ? (
-            <p className="text-center text-green-600">🟢 Abierto ahora</p>
-          ) : (
-            <p className="text-center text-gray-600">
-              🔴 Cerrado
-              {!estado.en_horario && ' (fuera de horario)'}
-            </p>
-          )}
-
-          {estado.conexion === 'caido' && (
-            <p className="mt-2 text-center text-sm text-amber-600">
-              ⚠️ El local puede tener problemas de conexión
-            </p>
-          )}
-          {estado.conexion === 'inestable' && (
-            <p className="mt-2 text-center text-sm text-amber-500">
-              Conexión inestable
-            </p>
-          )}
-        </div>
-      )}
+      {/* Estado del local (consultado fresco en el cliente) */}
+      <EstadoLocal localId={local.id} />
 
       {/* Menú por categorías */}
       <main className="mx-auto max-w-4xl px-6 py-8">

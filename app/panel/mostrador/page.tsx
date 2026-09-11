@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-panel';
 import { crearClienteNavegador } from '@/lib/supabase/navegador';
 import { formatearGuaranies } from '@/lib/formato';
 import { generarIdPedido } from '@/lib/carrito';
+import { urlDeLocal } from '@/lib/rutas';
 
 type EstadoPedido = 'nuevo' | 'cocina' | 'listo' | 'enviado' | 'entregado' | 'cancelado';
 
@@ -47,6 +48,7 @@ export default function PaginaMostrador() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
   const [nuevosPedidos, setNuevosPedidos] = useState<Set<string>>(new Set());
+  const [linkRepartidor, setLinkRepartidor] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -153,6 +155,46 @@ export default function PaginaMostrador() {
       dispositivo: 'panel',
       datos: { motivo },
     });
+  };
+
+  const generarTokenCorto = () => {
+    // Token de 8 caracteres (solo letras y números, sin ambiguos)
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let token = '';
+    for (let i = 0; i < 8; i++) {
+      token += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return token;
+  };
+
+  const asignarRepartidor = async (pedido: Pedido) => {
+    const nombre = prompt('Nombre del repartidor:');
+    if (!nombre) return;
+
+    if (!usuarioLocal) return;
+
+    const supabase = crearClienteNavegador();
+    const token = generarTokenCorto();
+
+    // Crear entrega
+    const { error } = await supabase.from('entregas').insert({
+      pedido_id: pedido.id,
+      local_id: usuarioLocal.localId,
+      token,
+      repartidor: nombre,
+    });
+
+    if (error) {
+      alert('Error al crear la entrega');
+      return;
+    }
+
+    // Actualizar estado del pedido a "enviado"
+    await cambiarEstado(pedido.id, 'enviado');
+
+    // Generar link
+    const link = urlDeLocal('lamera', `/e/${token}`); // TODO: obtener slug dinámicamente
+    setLinkRepartidor(link);
   };
 
   if (cargandoAuth || cargando) {
@@ -279,10 +321,10 @@ export default function PaginaMostrador() {
 
                       {pedido.estado === 'listo' && pedido.canal === 'delivery' && (
                         <button
-                          onClick={() => cambiarEstado(pedido.id, 'enviado')}
+                          onClick={() => asignarRepartidor(pedido)}
                           className="w-full rounded-lg bg-purple-600 py-2 text-sm font-semibold text-white hover:bg-purple-700"
                         >
-                          Salió para entrega
+                          Asignar repartidor
                         </button>
                       )}
 
@@ -340,6 +382,55 @@ export default function PaginaMostrador() {
           </section>
         )}
       </main>
+
+      {/* Modal de link del repartidor */}
+      {linkRepartidor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setLinkRepartidor(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-4 text-xl font-bold">Link del repartidor</h2>
+
+            <div className="mb-4 rounded-lg bg-gray-100 p-3">
+              <p className="break-all text-sm text-gray-800">{linkRepartidor}</p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(linkRepartidor);
+                  alert('Link copiado');
+                }}
+                className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
+              >
+                Copiar link
+              </button>
+
+              <button
+                onClick={() => {
+                  const mensaje = `Tu pedido está en camino. Seguí la entrega acá: ${linkRepartidor}`;
+                  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+                  window.open(whatsappUrl, '_blank');
+                }}
+                className="w-full rounded-lg bg-green-600 py-3 font-semibold text-white hover:bg-green-700"
+              >
+                Enviar por WhatsApp
+              </button>
+
+              <button
+                onClick={() => setLinkRepartidor(null)}
+                className="w-full rounded-lg border border-gray-300 py-3 font-semibold hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

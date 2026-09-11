@@ -8,6 +8,7 @@ import { generarIdPedido } from '@/lib/carrito';
 interface DatosEntrega {
   pedido: number;
   pedido_id: string;
+  local_id: string;
   cliente: string;
   telefono: string | null;
   direccion: string;
@@ -130,7 +131,7 @@ export default function PaginaRepartidor({
 
     await supabase.from('incidencias').insert({
       id: eventoId,
-      local_id: datos.pedido_id, // TODO: obtener local_id correcto
+      local_id: datos.local_id,
       pedido_id: datos.pedido_id,
       origen: 'repartidor',
       detalle: mensajes[tipo!],

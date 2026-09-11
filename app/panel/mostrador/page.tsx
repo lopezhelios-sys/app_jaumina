@@ -49,6 +49,7 @@ export default function PaginaMostrador() {
   const [cargando, setCargando] = useState(true);
   const [nuevosPedidos, setNuevosPedidos] = useState<Set<string>>(new Set());
   const [linkRepartidor, setLinkRepartidor] = useState<string | null>(null);
+  const [incidencias, setIncidencias] = useState<any[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -73,7 +74,30 @@ export default function PaginaMostrador() {
       setCargando(false);
     };
 
+    // Cargar incidencias activas
+    const cargarIncidencias = async () => {
+      const { data, error } = await supabase
+        .from('incidencias')
+        .select(`
+          id,
+          pedido_id,
+          origen,
+          detalle,
+          creado_en,
+          resuelto,
+          pedidos!inner(numero)
+        `)
+        .eq('local_id', usuarioLocal.localId)
+        .eq('resuelto', false)
+        .order('creado_en', { ascending: false });
+
+      if (!error && data) {
+        setIncidencias(data);
+      }
+    };
+
     cargarPedidos();
+    cargarIncidencias();
 
     // Suscribirse a eventos de pedidos
     const canal = supabase
@@ -110,6 +134,25 @@ export default function PaginaMostrador() {
                 return nuevo;
               });
             }, 5000);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incidencias',
+          filter: `local_id=eq.${usuarioLocal.localId}`,
+        },
+        () => {
+          // Recargar incidencias y reproducir sonido
+          cargarIncidencias();
+
+          if (audioRef.current) {
+            audioRef.current.play().catch(() => {
+              // Ignorar error si el navegador bloquea el autoplay
+            });
           }
         }
       )
@@ -197,6 +240,20 @@ export default function PaginaMostrador() {
     setLinkRepartidor(link);
   };
 
+  const resolverIncidencia = async (incidenciaId: string) => {
+    if (!usuarioLocal) return;
+
+    const supabase = crearClienteNavegador();
+
+    await supabase
+      .from('incidencias')
+      .update({ resuelto: true })
+      .eq('id', incidenciaId);
+
+    // Quitar de la lista local
+    setIncidencias((prev) => prev.filter((i) => i.id !== incidenciaId));
+  };
+
   if (cargandoAuth || cargando) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -238,6 +295,42 @@ export default function PaginaMostrador() {
       </header>
 
       <main className="p-4">
+        {/* Incidencias urgentes */}
+        {incidencias.length > 0 && (
+          <section className="mb-6">
+            <div className="space-y-3">
+              {incidencias.map((incidencia) => (
+                <div
+                  key={incidencia.id}
+                  className="rounded-lg bg-red-50 p-4 shadow-lg ring-2 ring-red-500"
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <p className="text-lg font-bold text-red-900">
+                        ⚠️ Pedido #{(incidencia.pedidos as any).numero}
+                      </p>
+                      <p className="text-sm text-red-700">{incidencia.detalle}</p>
+                      <p className="mt-1 text-xs text-red-600">
+                        Reportado por {incidencia.origen} ·{' '}
+                        {new Date(incidencia.creado_en).toLocaleTimeString('es-PY', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => resolverIncidencia(incidencia.id)}
+                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                    >
+                      Resolver
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Pedidos activos */}
         <section className="mb-6">
           <h2 className="mb-4 text-lg font-semibold">Activos ({pedidosActivos.length})</h2>

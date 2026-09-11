@@ -50,6 +50,9 @@ export default function PaginaMostrador() {
   const [nuevosPedidos, setNuevosPedidos] = useState<Set<string>>(new Set());
   const [linkRepartidor, setLinkRepartidor] = useState<string | null>(null);
   const [incidencias, setIncidencias] = useState<any[]>([]);
+  const [pedidosSeleccionados, setPedidosSeleccionados] = useState<Set<string>>(new Set());
+  const [mostrarModalViaje, setMostrarModalViaje] = useState(false);
+  const [datosViaje, setDatosViaje] = useState<{token: string; paradas: number; totalEfectivo: number} | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -254,6 +257,53 @@ export default function PaginaMostrador() {
     setIncidencias((prev) => prev.filter((i) => i.id !== incidenciaId));
   };
 
+  const toggleSeleccion = (pedidoId: string) => {
+    setPedidosSeleccionados((prev) => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(pedidoId)) {
+        nuevo.delete(pedidoId);
+      } else {
+        nuevo.add(pedidoId);
+      }
+      return nuevo;
+    });
+  };
+
+  const crearViajeConSeleccionados = async () => {
+    if (pedidosSeleccionados.size === 0 || !usuarioLocal) return;
+
+    const nombre = prompt('Nombre del repartidor:');
+    if (!nombre) return;
+
+    const telefono = prompt('Teléfono (opcional):');
+
+    const supabase = crearClienteNavegador();
+
+    const { data, error } = await supabase.rpc('crear_viaje', {
+      p_local_id: usuarioLocal.localId,
+      p_repartidor: nombre,
+      p_telefono: telefono || null,
+      p_pedidos: Array.from(pedidosSeleccionados),
+    });
+
+    if (error) {
+      alert('Error al crear el viaje');
+      console.error(error);
+      return;
+    }
+
+    // Limpiar selección
+    setPedidosSeleccionados(new Set());
+
+    // Mostrar modal con datos del viaje
+    setDatosViaje({
+      token: data.token,
+      paradas: data.paradas,
+      totalEfectivo: data.total_efectivo,
+    });
+    setMostrarModalViaje(true);
+  };
+
   if (cargandoAuth || cargando) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -341,14 +391,36 @@ export default function PaginaMostrador() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {pedidosActivos.map((pedido) => {
                 const esNuevo = nuevosPedidos.has(pedido.id);
+                const puedeSeleccionar =
+                  pedido.canal === 'delivery' &&
+                  (pedido.estado === 'listo' || pedido.estado === 'cocina') &&
+                  pedido.estado !== 'enviado';
+                const estaSeleccionado = pedidosSeleccionados.has(pedido.id);
 
                 return (
                   <div
                     key={pedido.id}
                     className={`rounded-lg bg-white p-4 shadow transition-all ${
                       esNuevo ? 'ring-4 ring-yellow-400' : ''
-                    }`}
+                    } ${estaSeleccionado ? 'ring-2 ring-purple-500' : ''}`}
                   >
+                    {/* Checkbox de selección */}
+                    {puedeSeleccionar && (
+                      <div className="mb-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={estaSeleccionado}
+                            onChange={() => toggleSeleccion(pedido.id)}
+                            className="h-5 w-5 rounded text-purple-600"
+                          />
+                          <span className="text-sm font-medium text-gray-700">
+                            Incluir en viaje
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
                     {/* Encabezado */}
                     <div className="mb-3 flex items-start justify-between">
                       <div>
@@ -476,6 +548,40 @@ export default function PaginaMostrador() {
         )}
       </main>
 
+      {/* Barra fija para armar viaje */}
+      {pedidosSeleccionados.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-purple-600 p-4 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="text-white">
+              <p className="text-lg font-bold">
+                {pedidosSeleccionados.size} {pedidosSeleccionados.size === 1 ? 'pedido seleccionado' : 'pedidos seleccionados'}
+              </p>
+              <p className="text-sm opacity-90">
+                Total: {formatearGuaranies(
+                  pedidos
+                    .filter((p) => pedidosSeleccionados.has(p.id))
+                    .reduce((sum, p) => sum + p.total, 0)
+                )} Gs.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPedidosSeleccionados(new Set())}
+                className="rounded-lg bg-white/20 px-4 py-3 font-semibold text-white hover:bg-white/30"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={crearViajeConSeleccionados}
+                className="rounded-lg bg-white px-6 py-3 font-bold text-purple-600 hover:bg-gray-100"
+              >
+                Armar viaje con {pedidosSeleccionados.size} {pedidosSeleccionados.size === 1 ? 'parada' : 'paradas'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de link del repartidor */}
       {linkRepartidor && (
         <div
@@ -516,6 +622,68 @@ export default function PaginaMostrador() {
 
               <button
                 onClick={() => setLinkRepartidor(null)}
+                className="w-full rounded-lg border border-gray-300 py-3 font-semibold hover:bg-gray-50"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de viaje creado */}
+      {mostrarModalViaje && datosViaje && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setMostrarModalViaje(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-4 text-xl font-bold">Viaje creado</h2>
+
+            <div className="mb-4 space-y-2">
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold">{datosViaje.paradas}</span> {datosViaje.paradas === 1 ? 'parada' : 'paradas'}
+              </p>
+              <p className="text-sm text-gray-600">
+                A rendir en efectivo: <span className="font-bold">{formatearGuaranies(datosViaje.totalEfectivo)} Gs.</span>
+              </p>
+            </div>
+
+            <div className="mb-4 rounded-lg bg-gray-100 p-3">
+              <p className="break-all text-sm text-gray-800">
+                {urlDeLocal('lamera', `/e/${datosViaje.token}`)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  const link = urlDeLocal('lamera', `/e/${datosViaje.token}`);
+                  navigator.clipboard.writeText(link);
+                  alert('Link copiado');
+                }}
+                className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
+              >
+                Copiar link
+              </button>
+
+              <button
+                onClick={() => {
+                  const link = urlDeLocal('lamera', `/e/${datosViaje.token}`);
+                  const mensaje = `Viaje con ${datosViaje.paradas} ${datosViaje.paradas === 1 ? 'parada' : 'paradas'}. Tenés que rendir ${formatearGuaranies(datosViaje.totalEfectivo)} Gs. en efectivo. Seguí el viaje acá: ${link}`;
+                  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+                  window.open(whatsappUrl, '_blank');
+                }}
+                className="w-full rounded-lg bg-green-600 py-3 font-semibold text-white hover:bg-green-700"
+              >
+                Enviar por WhatsApp
+              </button>
+
+              <button
+                onClick={() => setMostrarModalViaje(false)}
                 className="w-full rounded-lg border border-gray-300 py-3 font-semibold hover:bg-gray-50"
               >
                 Cerrar

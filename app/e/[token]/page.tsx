@@ -10,6 +10,8 @@ interface DatosViaje {
   telefono: string | null;
   estado: string;
   creado_en: string;
+  efectivo_a_rendir: number;
+  efectivo_cobrado: number;
   marca: any;
   paradas: Parada[];
 }
@@ -220,9 +222,6 @@ export default function PaginaViaje({
     const tiempoTotal = Math.floor(
       (new Date().getTime() - new Date(datos.creado_en).getTime()) / 1000 / 60
     );
-    const totalRendido = datos.paradas
-      .filter((p) => p.monto_cobrado !== null)
-      .reduce((sum, p) => sum + (p.monto_cobrado || 0), 0);
 
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
@@ -235,7 +234,7 @@ export default function PaginaViaje({
             </p>
             <p>Tiempo total: {tiempoTotal} minutos</p>
             <p className="text-lg font-bold">
-              A rendir: {formatearGuaranies(totalRendido)} Gs.
+              A rendir: {formatearGuaranies(datos.efectivo_cobrado)} Gs.
             </p>
           </div>
           <p className="mt-6 text-sm text-gray-400">Este link ya no es válido</p>
@@ -245,10 +244,6 @@ export default function PaginaViaje({
   }
 
   const paradaActual = datos.paradas[paradaActualIndex];
-  const totalEfectivo = datos.paradas
-    .filter((p) => p.pedido.pago_metodo === 'efectivo' && p.estado !== 'fallido')
-    .reduce((sum, p) => sum + p.pedido.total, 0);
-
   const llegueActual = llegueParadas.has(paradaActual.pedido_id) || paradaActual.estado === 'llegue';
 
   return (
@@ -278,7 +273,7 @@ export default function PaginaViaje({
         </div>
 
         <p className="text-center text-sm">
-          A rendir: <span className="font-bold">{formatearGuaranies(totalEfectivo)} Gs.</span>
+          A rendir: <span className="font-bold">{formatearGuaranies(datos.efectivo_a_rendir)} Gs.</span>
         </p>
       </header>
 

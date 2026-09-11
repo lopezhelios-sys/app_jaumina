@@ -102,6 +102,11 @@ Plataforma para locales gastronómicos de Paraguay: menú digital, pedidos en l�
 - Agregar política RLS en la misma migración
 - Documentar el propósito de la tabla en comentario SQL
 
+### Al aplicar migraciones
+**NUNCA** ejecutar `supabase db reset` contra el proyecto remoto: borra todos los datos (usuarios, pedidos, configuración). Las migraciones se aplican con:
+- `supabase db push` (aplica solo las pendientes)
+- Pegando el SQL en el editor de Supabase (Dashboard → SQL Editor)
+
 ### Al formatear dinero
 ```typescript
 // ✅ Correcto

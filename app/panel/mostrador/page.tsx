@@ -53,6 +53,7 @@ export default function PaginaMostrador() {
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<Set<string>>(new Set());
   const [mostrarModalViaje, setMostrarModalViaje] = useState(false);
   const [datosViaje, setDatosViaje] = useState<{token: string; paradas: number; totalEfectivo: number} | null>(null);
+  const [viajesActivos, setViajesActivos] = useState<any[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -99,8 +100,35 @@ export default function PaginaMostrador() {
       }
     };
 
+    // Cargar viajes activos
+    const cargarViajes = async () => {
+      const { data, error } = await supabase
+        .from('viajes')
+        .select(`
+          id,
+          repartidor,
+          telefono,
+          token,
+          creado_en,
+          paradas(
+            id,
+            orden,
+            estado,
+            pedidos(numero, cliente, direccion)
+          )
+        `)
+        .eq('local_id', usuarioLocal.localId)
+        .eq('estado', 'en_curso')
+        .order('creado_en', { ascending: false });
+
+      if (!error && data) {
+        setViajesActivos(data);
+      }
+    };
+
     cargarPedidos();
     cargarIncidencias();
+    cargarViajes();
 
     // Suscribirse a eventos de pedidos
     const canal = supabase
@@ -161,8 +189,26 @@ export default function PaginaMostrador() {
       )
       .subscribe();
 
+    // Suscribirse a cambios en paradas para actualizar viajes en tiempo real
+    const canalParadas = supabase
+      .channel('paradas_mostrador')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'paradas',
+        },
+        () => {
+          // Recargar viajes cuando una parada cambia de estado
+          cargarViajes();
+        }
+      )
+      .subscribe();
+
     return () => {
       canal.unsubscribe();
+      canalParadas.unsubscribe();
     };
   }, [usuarioLocal]);
 
@@ -377,6 +423,105 @@ export default function PaginaMostrador() {
                   </div>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* Viajes en curso */}
+        {viajesActivos.length > 0 && (
+          <section className="mb-6">
+            <h2 className="mb-4 text-lg font-semibold">Viajes en curso ({viajesActivos.length})</h2>
+            <div className="space-y-4">
+              {viajesActivos.map((viaje) => {
+                const paradasOrdenadas = [...viaje.paradas].sort((a: any, b: any) => a.orden - b.orden);
+                const entregadas = paradasOrdenadas.filter((p: any) => p.estado === 'entregado').length;
+                const enCamino = paradasOrdenadas.find((p: any) => p.estado === 'en_camino' || p.estado === 'llegue');
+
+                return (
+                  <div
+                    key={viaje.id}
+                    className="rounded-lg bg-purple-50 p-4 shadow ring-2 ring-purple-300"
+                  >
+                    <div className="mb-3 flex items-start justify-between">
+                      <div>
+                        <p className="text-lg font-bold text-purple-900">
+                          🚗 {viaje.repartidor}
+                        </p>
+                        {viaje.telefono && (
+                          <a
+                            href={`tel:${viaje.telefono}`}
+                            className="text-sm text-purple-700 hover:underline"
+                          >
+                            {viaje.telefono}
+                          </a>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-purple-700">
+                          {entregadas}/{paradasOrdenadas.length} entregadas
+                        </p>
+                        <a
+                          href={urlDeLocal('lamera', `/e/${viaje.token}`)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-purple-600 hover:underline"
+                        >
+                          Ver viaje →
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    <div className="mb-3 h-2 overflow-hidden rounded-full bg-purple-200">
+                      <div
+                        className="h-full bg-purple-600 transition-all"
+                        style={{
+                          width: `${(entregadas / paradasOrdenadas.length) * 100}%`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Parada actual */}
+                    {enCamino && (
+                      <div className="rounded-lg bg-white p-3">
+                        <p className="mb-1 text-xs font-semibold uppercase text-purple-600">
+                          En camino
+                        </p>
+                        <p className="font-semibold">
+                          #{(enCamino.pedidos as any).numero} · {(enCamino.pedidos as any).cliente}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {(enCamino.pedidos as any).direccion}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Lista resumida de paradas */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {paradasOrdenadas.map((parada: any) => {
+                        const icono =
+                          parada.estado === 'entregado'
+                            ? '✅'
+                            : parada.estado === 'fallido'
+                              ? '❌'
+                              : parada.estado === 'llegue' || parada.estado === 'en_camino'
+                                ? '🚗'
+                                : '⏳';
+
+                        return (
+                          <span
+                            key={parada.id}
+                            className="rounded bg-white px-2 py-1 text-xs"
+                            title={`${parada.pedidos.cliente} - ${parada.pedidos.direccion}`}
+                          >
+                            {icono} #{parada.pedidos.numero}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}

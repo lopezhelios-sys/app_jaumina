@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  jaumina:
+    container_name: jaumina
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_BASE_URL=https://jaumina.com.py
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    networks:
+      - proxy
+    labels:
+      # Traefik labels para proxy inverso y SSL automático
+      - "traefik.enable=true"
+      - "traefik.http.routers.jaumina.rule=Host(`jaumina.com.py`)"
+      - "traefik.http.routers.jaumina.entrypoints=websecure"
+      - "traefik.http.routers.jaumina.tls=true"
+      - "traefik.http.routers.jaumina.tls.certresolver=letsencrypt"
+      - "traefik.http.services.jaumina.loadbalancer.server.port=3000"
+
+networks:
+  proxy:
+    external: true

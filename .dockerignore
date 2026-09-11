@@ -1,0 +1,48 @@
+# Dependencias
+node_modules
+.pnp
+.pnp.js
+
+# Build
+.next
+out
+dist
+build
+
+# Entorno
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Git
+.git
+.gitignore
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema
+.DS_Store
+*.pem
+Thumbs.db
+
+# Temporal
+.swp
+.swo
+*~
+
+# IDE
+.vscode
+.idea
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.md
+!README.md

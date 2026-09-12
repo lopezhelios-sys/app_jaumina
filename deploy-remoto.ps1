@@ -70,25 +70,7 @@ if (-not $supabaseUrl -or -not $supabaseKey) {
 if ($soloVerificar) {
     Write-Info "🔍 Verificando estado del servidor..."
 
-    $verificarScript = @'
-echo "📦 Contenedores en ejecución:"
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-echo ""
-echo "🌐 Redes Docker:"
-docker network ls | grep proxy || echo "  ⚠️  Red 'proxy' no existe"
-
-echo ""
-echo "📂 Proyecto Ja'umina:"
-if [ -d "/opt/jaumina" ]; then
-    echo "  ✅ Directorio existe"
-    cd /opt/jaumina && git log --oneline -1
-else
-    echo "  ⚠️  Directorio no existe"
-fi
-'@
-
-    $verificarScript | ssh $destino "bash -s"
+    Get-Content scripts/verificar-servidor.sh | ssh $destino "bash -s"
 
     Write-Success "`n✅ Verificación completada"
     exit 0
@@ -122,90 +104,25 @@ if ($primeraVez) {
 
     Write-Info "`n🔧 Ejecutando setup en el servidor..."
 
-    # Crear script de setup con variables expandidas
-    $setupScript = @'
-#!/bin/bash
-set -e
+    # Leer script, reemplazar placeholders, enviar al servidor
+    $setupContent = Get-Content scripts/setup-inicial.sh -Raw
+    $setupContent = $setupContent.Replace('__REPO_URL__', $repoUrl)
+    $setupContent = $setupContent.Replace('__SUPABASE_URL__', $supabaseUrl)
+    $setupContent = $setupContent.Replace('__SUPABASE_KEY__', $supabaseKey)
 
-echo "🔍 Verificando Docker..."
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker no está instalado"
-    exit 1
-fi
-echo "✅ Docker instalado"
-
-echo "🔍 Verificando Docker Compose..."
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker Compose no está instalado"
-    exit 1
-fi
-echo "✅ Docker Compose instalado"
-
-echo "🔍 Verificando Traefik..."
-if ! docker ps | grep -q traefik; then
-    echo "⚠️  Traefik no está corriendo"
-    echo "Continuando de todas formas..."
-else
-    echo "✅ Traefik corriendo"
-fi
-
-echo "🌐 Verificando red proxy..."
-if ! docker network ls | grep -q proxy; then
-    echo "📝 Creando red proxy..."
-    docker network create proxy
-    echo "✅ Red proxy creada"
-else
-    echo "✅ Red proxy existe"
-fi
-
-echo "📂 Clonando repositorio..."
-cd /opt
-if [ -d "jaumina" ]; then
-    echo "⚠️  Directorio jaumina ya existe"
-    cd jaumina
-    git pull origin master
-else
-    git clone REPO_URL_PLACEHOLDER jaumina
-    cd jaumina
-fi
-echo "✅ Repositorio listo"
-
-echo "📝 Creando archivo .env..."
-cat > .env << 'ENVEOF'
-NEXT_PUBLIC_BASE_URL=https://jaumina.com.py
-NEXT_PUBLIC_SUPABASE_URL=SUPABASE_URL_PLACEHOLDER
-NEXT_PUBLIC_SUPABASE_ANON_KEY=SUPABASE_KEY_PLACEHOLDER
-ENVEOF
-
-echo "✅ Variables de entorno configuradas"
-
-echo "🔨 Construyendo imagen Docker..."
-docker compose build --no-cache
-
-echo "🚀 Iniciando contenedor..."
-docker compose up -d
-
-echo ""
-echo "✅ Despliegue completado"
-echo ""
-echo "Verificar en: https://jaumina.com.py"
-echo "Ver logs: docker compose logs -f jaumina"
-'@
-
-    # Reemplazar placeholders con valores reales
-    $setupScript = $setupScript.Replace('REPO_URL_PLACEHOLDER', $repoUrl)
-    $setupScript = $setupScript.Replace('SUPABASE_URL_PLACEHOLDER', $supabaseUrl)
-    $setupScript = $setupScript.Replace('SUPABASE_KEY_PLACEHOLDER', $supabaseKey)
-
-    $setupScript | ssh $destino "cat > /tmp/jaumina-setup.sh && chmod +x /tmp/jaumina-setup.sh && bash /tmp/jaumina-setup.sh"
+    $setupContent | ssh $destino "cat > /tmp/jaumina-setup.sh && chmod +x /tmp/jaumina-setup.sh && bash /tmp/jaumina-setup.sh"
 
     if ($LASTEXITCODE -eq 0) {
         Write-Success "`n✅ ¡Despliegue exitoso!"
         Write-Info "`nVerificar en: https://jaumina.com.py"
-        Write-Info "Ver logs: ssh $destino 'cd /opt/jaumina && docker compose logs -f jaumina'"
+        Write-Info "Ver logs: ssh $destino"
+        Write-Info "  cd /opt/jaumina"
+        Write-Info "  docker compose logs -f jaumina"
     } else {
         Write-Fail "`n❌ Error en el despliegue"
-        Write-Info "Ver detalles: ssh $destino 'cd /opt/jaumina && docker compose logs jaumina'"
+        Write-Info "Ver detalles: ssh $destino"
+        Write-Info "  cd /opt/jaumina"
+        Write-Info "  docker compose logs jaumina"
         exit 1
     }
 
@@ -213,32 +130,7 @@ echo "Ver logs: docker compose logs -f jaumina"
     # Actualización: solo rebuild y restart
     Write-Info "`n🔄 Actualizando despliegue existente..."
 
-    $updateScript = @'
-#!/bin/bash
-set -e
-
-cd /opt/jaumina
-
-echo "📥 Obteniendo últimos cambios..."
-git pull origin master
-
-echo "🛑 Deteniendo contenedor..."
-docker compose down
-
-echo "🔨 Reconstruyendo imagen..."
-docker compose build --no-cache
-
-echo "🚀 Reiniciando contenedor..."
-docker compose up -d
-
-echo "🧹 Limpiando imágenes antiguas..."
-docker image prune -f
-
-echo ""
-echo "✅ Actualización completada"
-'@
-
-    $updateScript | ssh $destino "bash -s"
+    Get-Content scripts/actualizar.sh | ssh $destino "bash -s"
 
     if ($LASTEXITCODE -eq 0) {
         Write-Success "`n✅ ¡Actualización exitosa!"

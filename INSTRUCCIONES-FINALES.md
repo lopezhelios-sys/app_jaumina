@@ -19,7 +19,7 @@ cd c:\Users\Helio\Desktop\app_jaumina
 
 ```powershell
 # Reemplazar "TU-IP-AQUI" con la IP de tu servidor Contabo
-.\deploy-remoto.ps1 -servidor TU-IP-AQUI -primeraVez
+.\deploy-remoto.ps1 -servidor 213.199.51.41 -primeraVez
 ```
 
 **Ejemplo:**

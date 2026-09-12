@@ -23,9 +23,9 @@ Write-Host "  Jaumina - Despliegue Automatizado  " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Validar parámetros
+# Validar parametros
 if ($servidor -eq "") {
-    Write-Fail "❌ Error: Debes especificar el servidor"
+    Write-Fail "[X] Error: Debes especificar el servidor"
     Write-Info ""
     Write-Info "Uso:"
     Write-Info "  .\deploy-remoto.ps1 -servidor tu-servidor-ip"
@@ -38,22 +38,22 @@ if ($servidor -eq "") {
 $destino = "$usuario@$servidor"
 
 # Verificar conectividad SSH
-Write-Info "🔍 Verificando conexión SSH a $destino..."
+Write-Info "[*] Verificando conexion SSH a $destino..."
 $testSSH = ssh -o ConnectTimeout=5 -o BatchMode=yes $destino "echo OK" 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "❌ No se pudo conectar al servidor"
+    Write-Fail "[X] No se pudo conectar al servidor"
     Write-Warning "Verifica:"
     Write-Warning "  - La IP del servidor es correcta"
-    Write-Warning "  - Tenés acceso SSH configurado"
+    Write-Warning "  - Tenes acceso SSH configurado"
     Write-Warning "  - El firewall permite conexiones SSH"
     exit 1
 }
-Write-Success "✅ Conexión SSH exitosa"
+Write-Success "[OK] Conexion SSH exitosa"
 
 # Leer variables de entorno locales
-Write-Info "📝 Leyendo variables de entorno..."
+Write-Info "[*] Leyendo variables de entorno..."
 if (-not (Test-Path ".env.local")) {
-    Write-Fail "❌ No se encontró .env.local"
+    Write-Fail "[X] No se encontro .env.local"
     exit 1
 }
 
@@ -62,23 +62,23 @@ $supabaseUrl = ($envVars | Where-Object { $_ -match 'NEXT_PUBLIC_SUPABASE_URL' }
 $supabaseKey = ($envVars | Where-Object { $_ -match 'NEXT_PUBLIC_SUPABASE_ANON_KEY' }) -replace '.*=', ''
 
 if (-not $supabaseUrl -or -not $supabaseKey) {
-    Write-Fail "❌ Faltan variables de Supabase en .env.local"
+    Write-Fail "[X] Faltan variables de Supabase en .env.local"
     exit 1
 }
 
 # Solo verificar
 if ($soloVerificar) {
-    Write-Info "🔍 Verificando estado del servidor..."
+    Write-Info "[*] Verificando estado del servidor..."
 
     Get-Content scripts/verificar-servidor.sh | ssh $destino 'bash -s'
 
-    Write-Success "`n✅ Verificación completada"
+    Write-Success "`n[OK] Verificacion completada"
     exit 0
 }
 
 # Primera vez: setup completo
 if ($primeraVez) {
-    Write-Info "`n🚀 Primera instalación - Setup completo"
+    Write-Info "`n[*] Primera instalacion - Setup completo"
     Write-Warning "Esto va a:"
     Write-Warning "  1. Verificar requisitos (Docker, Traefik)"
     Write-Warning "  2. Crear red proxy si no existe"
@@ -87,22 +87,22 @@ if ($primeraVez) {
     Write-Warning "  5. Desplegar Jaumina"
     Write-Host ""
 
-    $confirm = Read-Host "¿Continuar? (s/n)"
+    $confirm = Read-Host "Continuar? (s/n)"
     if ($confirm -ne "s") {
         Write-Warning "Cancelado"
         exit 0
     }
 
-    Write-Info "`n📋 Obteniendo URL del repositorio..."
+    Write-Info "`n[*] Obteniendo URL del repositorio..."
     $repoUrl = git config --get remote.origin.url
     if (-not $repoUrl) {
-        Write-Fail "❌ No se pudo obtener la URL del repositorio"
-        Write-Info "Ejecutá: git remote -v"
+        Write-Fail "[X] No se pudo obtener la URL del repositorio"
+        Write-Info "Ejecuta: git remote -v"
         exit 1
     }
     Write-Success "  Repositorio: $repoUrl"
 
-    Write-Info "`n🔧 Ejecutando setup en el servidor..."
+    Write-Info "`n[*] Ejecutando setup en el servidor..."
 
     # Leer script, reemplazar placeholders, enviar al servidor
     $setupContent = Get-Content scripts/setup-inicial.sh -Raw
@@ -112,19 +112,19 @@ if ($primeraVez) {
 
     # Enviar script al servidor
     $setupContent | ssh $destino 'cat > /tmp/jaumina-setup.sh'
-    # Dar permisos de ejecución
+    # Dar permisos de ejecucion
     ssh $destino 'chmod +x /tmp/jaumina-setup.sh'
     # Ejecutar
     ssh $destino 'bash /tmp/jaumina-setup.sh'
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "`n✅ ¡Despliegue exitoso!"
+        Write-Success "`n[OK] Despliegue exitoso!"
         Write-Info "`nVerificar en: https://jaumina.com.py"
         Write-Info "Ver logs: ssh $destino"
         Write-Info "  cd /opt/jaumina"
         Write-Info "  docker compose logs -f jaumina"
     } else {
-        Write-Fail "`n❌ Error en el despliegue"
+        Write-Fail "`n[X] Error en el despliegue"
         Write-Info "Ver detalles: ssh $destino"
         Write-Info "  cd /opt/jaumina"
         Write-Info "  docker compose logs jaumina"
@@ -132,15 +132,15 @@ if ($primeraVez) {
     }
 
 } else {
-    # Actualización: solo rebuild y restart
-    Write-Info "`n🔄 Actualizando despliegue existente..."
+    # Actualizacion: solo rebuild y restart
+    Write-Info "`n[*] Actualizando despliegue existente..."
 
     Get-Content scripts/actualizar.sh | ssh $destino 'bash -s'
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Success "`n✅ ¡Actualización exitosa!"
+        Write-Success "`n[OK] Actualizacion exitosa!"
     } else {
-        Write-Fail "`n❌ Error en la actualización"
+        Write-Fail "`n[X] Error en la actualizacion"
         exit 1
     }
 }

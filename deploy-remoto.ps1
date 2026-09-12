@@ -1,5 +1,5 @@
 # ============================================================
-# Ja'umina - Despliegue Remoto Automatizado
+# Jaumina - Despliegue Remoto Automatizado
 # Ejecutar desde Windows: .\deploy-remoto.ps1
 # ============================================================
 
@@ -18,9 +18,9 @@ function Write-Fail { Write-Host $args -ForegroundColor Red }
 
 # Banner
 Write-Host ""
-Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║   Ja'umina - Despliegue Automatizado   ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Jaumina - Despliegue Automatizado  " -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Validar parámetros
@@ -84,7 +84,7 @@ if ($primeraVez) {
     Write-Warning "  2. Crear red proxy si no existe"
     Write-Warning "  3. Clonar el repositorio"
     Write-Warning "  4. Configurar variables de entorno"
-    Write-Warning "  5. Desplegar Ja'umina"
+    Write-Warning "  5. Desplegar Jaumina"
     Write-Host ""
 
     $confirm = Read-Host "¿Continuar? (s/n)"
@@ -110,7 +110,12 @@ if ($primeraVez) {
     $setupContent = $setupContent.Replace('__SUPABASE_URL__', $supabaseUrl)
     $setupContent = $setupContent.Replace('__SUPABASE_KEY__', $supabaseKey)
 
-    $setupContent | ssh $destino 'cat > /tmp/jaumina-setup.sh && chmod +x /tmp/jaumina-setup.sh && bash /tmp/jaumina-setup.sh'
+    # Enviar script al servidor
+    $setupContent | ssh $destino 'cat > /tmp/jaumina-setup.sh'
+    # Dar permisos de ejecución
+    ssh $destino 'chmod +x /tmp/jaumina-setup.sh'
+    # Ejecutar
+    ssh $destino 'bash /tmp/jaumina-setup.sh'
 
     if ($LASTEXITCODE -eq 0) {
         Write-Success "`n✅ ¡Despliegue exitoso!"
@@ -141,7 +146,7 @@ if ($primeraVez) {
 }
 
 Write-Host ""
-Write-Success "════════════════════════════════════════"
+Write-Success "========================================"
 Write-Success "  Despliegue completado exitosamente"
-Write-Success "════════════════════════════════════════"
+Write-Success "========================================"
 Write-Host ""

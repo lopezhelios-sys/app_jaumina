@@ -70,7 +70,7 @@ if (-not $supabaseUrl -or -not $supabaseKey) {
 if ($soloVerificar) {
     Write-Info "🔍 Verificando estado del servidor..."
 
-    Get-Content scripts/verificar-servidor.sh | ssh $destino "bash -s"
+    Get-Content scripts/verificar-servidor.sh | ssh $destino 'bash -s'
 
     Write-Success "`n✅ Verificación completada"
     exit 0
@@ -110,7 +110,7 @@ if ($primeraVez) {
     $setupContent = $setupContent.Replace('__SUPABASE_URL__', $supabaseUrl)
     $setupContent = $setupContent.Replace('__SUPABASE_KEY__', $supabaseKey)
 
-    $setupContent | ssh $destino "cat > /tmp/jaumina-setup.sh && chmod +x /tmp/jaumina-setup.sh && bash /tmp/jaumina-setup.sh"
+    $setupContent | ssh $destino 'cat > /tmp/jaumina-setup.sh && chmod +x /tmp/jaumina-setup.sh && bash /tmp/jaumina-setup.sh'
 
     if ($LASTEXITCODE -eq 0) {
         Write-Success "`n✅ ¡Despliegue exitoso!"
@@ -130,7 +130,7 @@ if ($primeraVez) {
     # Actualización: solo rebuild y restart
     Write-Info "`n🔄 Actualizando despliegue existente..."
 
-    Get-Content scripts/actualizar.sh | ssh $destino "bash -s"
+    Get-Content scripts/actualizar.sh | ssh $destino 'bash -s'
 
     if ($LASTEXITCODE -eq 0) {
         Write-Success "`n✅ ¡Actualización exitosa!"
